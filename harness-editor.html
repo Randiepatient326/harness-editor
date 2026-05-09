@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Harness Editor — .claude/ 에이전트·스킬 편집기</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- CDN: marked (Markdown), js-yaml (Frontmatter), turndown (HTML→MD), turndown-gfm (표 등) -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/turndown-plugin-gfm@1.0.2/dist/turndown-plugin-gfm.js"></script>
+<style>
+:root {
+  --bg: #ffffff; --bg-elevated: #f8fafc; --bg-hover: #eef2f7;
+  --fg: #0f172a; --fg-muted: #64748b;
+  --border: #e2e8f0; --border-strong: #cbd5e1;
+  --accent: #2563eb; --accent-soft: #dbeafe;
+  --warn: #b45309; --err: #b91c1c; --ok: #15803d;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+          "Noto Sans KR", "Malgun Gothic", sans-serif;
+}
+[data-theme="dark"] {
+  --bg: #0e1116; --bg-elevated: #161b22; --bg-hover: #1f262e;
+  --fg: #e6edf3; --fg-muted: #8b96a3;
+  --border: #2d333b; --border-strong: #444c56;
+  --accent: #58a6ff; --accent-soft: rgba(56,139,253,0.15);
+  --warn: #d29922; --err: #f85149; --ok: #3fb950;
+  --shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: var(--sans);
+  background: var(--bg); color: var(--fg);
+  font-size: 13.5px; line-height: 1.5;
+  display: grid; grid-template-rows: 48px 1fr 22px;
+  overflow: hidden;
+}
+button {
+  font: inherit; color: inherit; background: var(--bg-elevated);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 4px 10px; cursor: pointer;
+}
+button:hover { background: var(--bg-hover); }
+button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+button.primary:hover { filter: brightness(1.1); }
+button.ghost { background: transparent; border-color: transparent; }
+input[type="text"], input[type="search"], textarea, select {
+  font: inherit; color: inherit; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 10px; outline: none; width: 100%;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+textarea { resize: vertical; font-family: var(--mono); font-size: 12.5px; }
+
+/* Header */
+header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px; border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+header .logo { font-weight: 700; font-size: 14px; letter-spacing: -0.01em; }
+header .logo .accent { color: var(--accent); }
+header .spacer { flex: 1; }
+header .root-path {
+  font-family: var(--mono); font-size: 11.5px;
+  color: var(--fg-muted); padding: 4px 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; max-width: 360px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+header .mode-badge {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600;
+}
+header .mode-badge.fallback { background: rgba(180,83,9,0.15); color: var(--warn); }
+
+/* Main grid */
+main {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  overflow: hidden;
+}
+[data-sidebar-collapsed="true"] main { grid-template-columns: 0 1fr; }
+[data-sidebar-collapsed="true"] aside { display: none; }
+
+aside {
+  border-right: 1px solid var(--border); background: var(--bg-elevated);
+  overflow-y: auto; padding: 8px 0;
+  display: grid; grid-template-rows: 1fr auto;
+}
+.tree-scroll { overflow-y: auto; }
+.legend {
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 11.5px; color: var(--fg-muted);
+}
+.legend > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  padding: 8px 12px; font-weight: 600; color: var(--fg);
+}
+.legend > summary::-webkit-details-marker { display: none; }
+.legend > summary::before { content: "▶ "; font-size: 9px; color: var(--fg-muted); }
+.legend[open] > summary::before { content: "▼ "; }
+.legend-body { padding: 0 12px 12px; line-height: 1.7; }
+.legend-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.legend-row .swatch {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+.legend-row .swatch.dirty { width: 7px; height: 7px; }
+.legend-row .swatch.err {
+  background: transparent; color: var(--err); font-weight: 700;
+  font-family: var(--mono); width: 12px; text-align: center;
+}
+.legend hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.tree-section { padding: 4px 0; }
+.tree-section-header {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--fg-muted); padding: 6px 12px;
+  font-weight: 700;
+}
+.tree-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 12px 4px 24px;
+  cursor: pointer; user-select: none;
+  font-size: 13px;
+}
+.tree-row:hover { background: var(--bg-hover); }
+.tree-row.active { background: var(--accent-soft); color: var(--accent); }
+.tree-row .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.tree-row .dot.agent { background: #2563eb; }
+.tree-row .dot.skill { background: #16a34a; }
+.tree-row .dot.orchestrator { background: #ea580c; }
+.tree-row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-row .meta { font-size: 10.5px; color: var(--fg-muted); }
+.tree-row .dirty {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--warn); flex-shrink: 0;
+}
+.tree-row .errmark {
+  font-size: 10px; color: var(--err); flex-shrink: 0;
+}
+
+aside .empty {
+  padding: 16px 12px; color: var(--fg-muted); font-size: 12.5px;
+  line-height: 1.5;
+}
+aside .empty button { margin-top: 8px; }
+
+/* Editor area */
+section.editor {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+}
+.fm-panel {
+  border-bottom: 1px solid var(--border); background: var(--bg);
+  padding: 12px 16px;
+  max-height: 40vh; overflow-y: auto;
+}
+.fm-panel summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.fm-panel summary::-webkit-details-marker { display: none; }
+.fm-panel summary::before { content: "▼ "; color: var(--fg-muted); font-size: 10px; }
+.fm-panel:not([open]) summary::before { content: "▶ "; }
+.fm-grid {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px 14px; align-items: start;
+  margin-top: 10px;
+}
+.fm-grid label { color: var(--fg-muted); font-size: 12px; padding-top: 6px; }
+.fm-grid .row-with-hint { display: grid; grid-template-columns: 1fr 280px; gap: 10px; }
+.fm-grid .row-with-hint > .hint {
+  font-size: 11.5px; padding: 8px 10px;
+  background: var(--bg-elevated); border-radius: 6px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+}
+.fm-grid .row-with-hint .hint .ok { color: var(--ok); }
+.fm-grid .row-with-hint .hint .warn { color: var(--warn); }
+.fm-grid .row-with-hint .hint ul { margin: 4px 0 0; padding-left: 14px; }
+.validation-msg { font-size: 11.5px; margin-top: 4px; }
+.validation-msg.err { color: var(--err); }
+.validation-msg.warn { color: var(--warn); }
+.validation-msg.ok { color: var(--ok); }
+
+.body-pane {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden; min-height: 0;
+}
+[data-preview-collapsed="true"] .body-pane { grid-template-columns: 1fr 0; }
+[data-preview-collapsed="true"] .preview-side { display: none; }
+
+.editor-side {
+  display: grid; grid-template-rows: auto 1fr;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+.section-rail {
+  display: flex; gap: 4px; padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  overflow-x: auto; flex-wrap: wrap;
+  font-size: 11.5px;
+}
+.section-rail .pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  cursor: pointer; white-space: nowrap;
+}
+.section-rail .pill:hover { background: var(--bg-hover); }
+.section-rail .pill.h2 { font-weight: 600; }
+.section-rail .pill.h3 { color: var(--fg-muted); padding-left: 16px; }
+.section-rail .empty { color: var(--fg-muted); }
+
+.body-textarea {
+  width: 100%; height: 100%;
+  border: 0; border-radius: 0; padding: 14px 18px;
+  background: var(--bg); color: var(--fg);
+  font-family: var(--mono); font-size: 13px; line-height: 1.65;
+  resize: none; outline: none;
+  white-space: pre; overflow: auto;
+}
+
+.preview-side {
+  background: var(--bg-elevated); overflow: hidden;
+  display: grid; grid-template-rows: auto 1fr; min-height: 0;
+}
+.preview-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 11.5px; color: var(--fg-muted);
+}
+.preview-toolbar .spacer { flex: 1; }
+.preview-toolbar label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.preview-toolbar .badge {
+  font-size: 10px; padding: 2px 7px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent); font-weight: 600;
+}
+.preview-toolbar .badge.editing { background: rgba(217,119,6,0.15); color: var(--warn); }
+.preview-body {
+  overflow: auto; padding: 16px 22px; font-size: 13.5px; outline: none;
+}
+.preview-body[contenteditable="true"] {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 2px var(--warn);
+}
+.preview-body[contenteditable="true"]:focus { outline: none; }
+.preview-body h2.section-target,
+.preview-body h3.section-target {
+  background: var(--accent-soft);
+  transition: background 1200ms ease;
+}
+.preview-body h1 { font-size: 20px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.preview-body h2 { font-size: 16px; margin: 22px 0 8px; padding-left: 8px;
+                    border-left: 3px solid var(--accent); }
+.preview-body h3 { font-size: 14px; margin: 14px 0 6px; color: var(--fg-muted); }
+.preview-body code { font-family: var(--mono); font-size: 12px;
+                      background: var(--bg-hover); padding: 1px 5px; border-radius: 3px; }
+.preview-body pre { background: var(--bg); border: 1px solid var(--border);
+                     border-radius: 6px; padding: 10px 12px; overflow: auto; }
+.preview-body pre code { background: transparent; padding: 0; }
+.preview-body table { border-collapse: collapse; margin: 8px 0; font-size: 12.5px; width: auto; }
+.preview-body th, .preview-body td { border: 1px solid var(--border); padding: 5px 9px; text-align: left; }
+.preview-body th { background: var(--bg-hover); }
+.preview-body blockquote { border-left: 3px solid var(--border-strong); margin: 8px 0;
+                            padding: 4px 12px; color: var(--fg-muted); }
+.preview-body[contenteditable="true"] table th,
+.preview-body[contenteditable="true"] table td {
+  outline: 1px dashed transparent;
+}
+.preview-body[contenteditable="true"] table th:focus,
+.preview-body[contenteditable="true"] table td:focus {
+  outline: 2px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.welcome {
+  padding: 40px; text-align: center; color: var(--fg-muted);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  height: 100%; justify-content: center;
+}
+.welcome h2 { color: var(--fg); margin: 0; font-size: 20px; }
+.welcome p { max-width: 540px; line-height: 1.6; }
+.welcome code { font-family: var(--mono); background: var(--bg-elevated);
+                padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+/* Statusbar */
+footer {
+  border-top: 1px solid var(--border); background: var(--bg-elevated);
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 12px; font-size: 11.5px; color: var(--fg-muted);
+}
+footer .spacer { flex: 1; }
+footer .stat { display: inline-flex; align-items: center; gap: 4px; }
+footer .stat .dot { width: 6px; height: 6px; border-radius: 50%; }
+footer .stat .dot.ok { background: var(--ok); }
+footer .stat .dot.warn { background: var(--warn); }
+footer .stat .dot.err { background: var(--err); }
+
+/* Modal */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 12vh; z-index: 100;
+}
+.modal {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
+  width: min(680px, 92vw);
+  max-height: 75vh; display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.modal-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.modal-head h3 { margin: 0; font-size: 14px; }
+.modal-body { padding: 12px 14px; overflow: auto; flex: 1; }
+.modal-foot { padding: 10px 14px; border-top: 1px solid var(--border);
+              display: flex; gap: 8px; justify-content: flex-end; background: var(--bg-elevated); }
+.search-result {
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid transparent;
+}
+.search-result:hover { background: var(--bg-hover); border-color: var(--border); }
+.search-result .path { font-family: var(--mono); font-size: 11.5px; color: var(--fg-muted); }
+.search-result .snippet { font-family: var(--mono); font-size: 12px; margin-top: 2px;
+                           white-space: pre-wrap; word-break: break-all; }
+.search-result mark { background: rgba(255,213,0,0.45); padding: 0 1px; }
+[data-theme="dark"] .search-result mark { background: rgba(255,213,0,0.3); color: inherit; }
+
+/* Toast */
+#toasts {
+  position: fixed; top: 60px; right: 16px; z-index: 200;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 14px;
+  box-shadow: var(--shadow); pointer-events: auto;
+  max-width: 380px; font-size: 12.5px;
+  animation: slide-in 200ms ease;
+}
+.toast.warn { border-left: 3px solid var(--warn); }
+.toast.err  { border-left: 3px solid var(--err); }
+.toast.ok   { border-left: 3px solid var(--ok); }
+.toast.info { border-left: 3px solid var(--accent); }
+@keyframes slide-in { from { transform: translateX(40px); opacity: 0; } }
+
+kbd {
+  font-family: var(--mono); font-size: 11px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-bottom-width: 2px; border-radius: 3px; padding: 1px 5px;
+}
+
+/* Replace preview */
+.replace-preview {
+  font-family: var(--mono); font-size: 11.5px;
+  max-height: 280px; overflow: auto;
+  background: var(--bg-elevated); padding: 8px 10px;
+  border-radius: 6px; border: 1px solid var(--border);
+  white-space: pre-wrap;
+}
+.replace-preview .file-head { font-weight: 700; margin-top: 8px; color: var(--accent); }
+.replace-preview .replace-old { color: var(--err); text-decoration: line-through; }
+.replace-preview .replace-new { color: var(--ok); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Harness <span class="accent">Editor</span></div>
+  <button id="btn-pick" class="primary">📁 폴더 선택</button>
+  <button id="btn-upload" title="단일 파일 모드 (폴백)">📄 파일 업로드</button>
+  <button id="btn-search" title="검색 (⌘P)">🔍 검색</button>
+  <button id="btn-replace" title="일괄 치환 (⌘⇧H)">↔ 치환</button>
+  <span class="spacer"></span>
+  <span id="root-path" class="root-path"></span>
+  <span id="mode-badge" class="mode-badge"></span>
+  <button id="btn-save" title="저장 (⌘S)">💾 저장</button>
+  <button id="btn-save-all" title="전체 저장 (⌘⇧S)">💾 전체</button>
+  <button id="btn-theme" class="ghost" title="다크/라이트">🌓</button>
+</header>
+
+<main>
+  <aside id="sidebar">
+    <div class="tree-scroll">
+      <div class="empty" id="tree-empty">
+        <div>아직 로드된 파일이 없습니다.</div>
+        <div style="margin-top: 6px; font-size: 11.5px;">
+          <strong>📁 폴더 선택</strong>으로 프로젝트 루트(.claude/ 포함)를 여세요.<br>
+          Safari/Firefox에서는 <strong>📄 파일 업로드</strong>로 단일 .md를 편집할 수 있습니다.
+        </div>
+      </div>
+      <div id="tree" style="display:none"></div>
+    </div>
+    <details class="legend">
+      <summary>도움말 / 범례</summary>
+      <div class="legend-body">
+        <div style="font-weight:600;color:var(--fg);margin-bottom:4px;">파일 종류</div>
+        <div class="legend-row"><span class="swatch" style="background:#2563eb"></span>에이전트 (.claude/agents/)</div>
+        <div class="legend-row"><span class="swatch" style="background:#16a34a"></span>스킬 (.claude/skills/)</div>
+        <div class="legend-row"><span class="swatch" style="background:#ea580c"></span>오케스트레이터</div>
+        <hr>
+        <div style="font-weight:600;color:var(--fg);margin-bottom:4px;">상태 표시</div>
+        <div class="legend-row"><span class="swatch dirty" style="background:var(--warn)"></span>변경됨 (저장 필요, ⌘S)</div>
+        <div class="legend-row"><span class="swatch err">!</span>검증 오류 (필수 필드 누락 등)</div>
+        <hr>
+        <div style="font-weight:600;color:var(--fg);margin-bottom:4px;">단축키</div>
+        <div style="font-size:10.5px;line-height:1.8;">
+          <kbd>⌘S</kbd> 저장 · <kbd>⌘⇧S</kbd> 전체 저장<br>
+          <kbd>⌘P</kbd> 검색 · <kbd>⌘⇧H</kbd> 일괄 치환<br>
+          <kbd>⌘B</kbd> 사이드바 · <kbd>⌘\</kbd> 프리뷰 · <kbd>Esc</kbd> 모달 닫기
+        </div>
+      </div>
+    </details>
+  </aside>
+  <section class="editor">
+    <details class="fm-panel" id="fm-panel" open style="display:none">
+      <summary>Frontmatter</summary>
+      <div id="fm-form" class="fm-grid"></div>
+    </details>
+    <div class="body-pane">
+      <div class="editor-side">
+        <div class="section-rail" id="section-rail"></div>
+        <textarea id="body-editor" class="body-textarea" spellcheck="false" placeholder="Markdown 본문 (frontmatter 아래)"></textarea>
+      </div>
+      <div class="preview-side">
+        <div class="preview-toolbar">
+          <span>프리뷰</span>
+          <span id="preview-badge" class="badge">읽기</span>
+          <span class="spacer"></span>
+          <label title="우측 화면에서 직접 편집 (HTML→Markdown 변환). 표 편집에 편리하지만 빈 줄 등 표기 디테일이 정규화될 수 있음">
+            <input type="checkbox" id="toggle-wysiwyg"> 직접 편집 모드
+          </label>
+        </div>
+        <div id="preview" class="preview-body" spellcheck="false"></div>
+      </div>
+    </div>
+    <div class="welcome" id="welcome">
+      <h2>👋 Harness Editor</h2>
+      <p>좌측 <strong>📁 폴더 선택</strong> 버튼으로 프로젝트 루트를 열어 <code>.claude/agents/</code>와 <code>.claude/skills/</code>의 .md 파일을 한꺼번에 편집하세요.</p>
+      <p style="font-size: 12px;">단축키: <kbd>⌘S</kbd> 저장 · <kbd>⌘⇧S</kbd> 전체 저장 · <kbd>⌘P</kbd> 검색 · <kbd>⌘⇧H</kbd> 일괄 치환 · <kbd>⌘B</kbd> 사이드바 · <kbd>⌘\\</kbd> 프리뷰</p>
+      <p style="font-size: 12px; color: var(--fg-muted);">Chrome/Edge 권장 — 폴더 한 번 선택으로 직접 읽기·쓰기. Safari/Firefox는 단일 파일 업로드/다운로드 폴백 모드로 동작합니다.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span class="stat" id="stat-files">파일: 0</span>
+  <span class="stat" id="stat-dirty">변경: 0</span>
+  <span class="stat" id="stat-issues">검증: 0 경고 / 0 오류</span>
+  <span class="spacer"></span>
+  <span id="stat-current" style="font-family: var(--mono);"></span>
+</footer>
+
+<div id="toasts"></div>
+
+<script>
+"use strict";
+
+// ============================================================
+// === [core] state & utilities ===
+// ============================================================
+const HAS_FS = "showDirectoryPicker" in window;
+const state = {
+  rootHandle: null,
+  rootName: "",
+  files: [],          // {path, name, type, kind, fileType, raw, parsed, dirty, errors[], warnings[], handle, validation}
+  currentPath: null,
+  fallback: !HAS_FS,
+  theme: localStorage.getItem("he-theme") || "light",
+  sidebarCollapsed: false,
+  previewCollapsed: false,
+};
+
+document.documentElement.setAttribute("data-theme", state.theme);
+
+// Turndown 인스턴스 (HTML → Markdown 역변환, 우측 프리뷰 직접 편집용)
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  strongDelimiter: "**",
+  linkStyle: "inlined",
+  hr: "---",
+});
+if (window.turndownPluginGfm && window.turndownPluginGfm.gfm) {
+  turndown.use(window.turndownPluginGfm.gfm);
+}
+turndown.addRule("fencedCodeWithLang", {
+  filter: function(node) { return node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE"; },
+  replacement: function(_content, node) {
+    const code = node.firstChild;
+    const cls = code.getAttribute("class") || "";
+    const lang = (cls.match(/language-(\S+)/) || [, ""])[1];
+    return "\n```" + lang + "\n" + code.textContent.replace(/\n$/, "") + "\n```\n";
+  }
+});
+
+function $(sel, root = document) { return root.querySelector(sel); }
+function $$(sel, root = document) { return [...root.querySelectorAll(sel)]; }
+function el(tag, props = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") node.className = v;
+    else if (k === "style" && typeof v === "object") Object.assign(node.style, v);
+    else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === "html") node.innerHTML = v;
+    else if (v != null) node.setAttribute(k, v);
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    node.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return node;
+}
+function debounce(fn, ms) {
+  let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+function toast(msg, kind = "info", ms = 3000) {
+  const t = el("div", { class: `toast ${kind}` }, msg);
+  $("#toasts").appendChild(t);
+  setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 200); }, ms);
+  t.addEventListener("click", () => t.remove());
+}
+
+// ============================================================
+// === [md-engine] parsing / serialization / validation ===
+// ============================================================
+const FM_REGEX = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
+
+function parseMarkdown(raw) {
+  const out = { frontmatter: null, body: raw, sections: [], raw, errors: [], warnings: [] };
+  const m = raw.match(FM_REGEX);
+  if (m) {
+    try {
+      out.frontmatter = jsyaml.load(m[1]) || {};
+    } catch (e) {
+      out.errors.push(`YAML 파싱 실패: ${e.message}`);
+      out.frontmatter = null;
+    }
+    out.body = m[2].replace(/^\r?\n+/, "");
+  }
+  out.sections = splitSections(out.body);
+  return out;
+}
+
+function serializeMarkdown({ frontmatter, body }) {
+  if (!frontmatter || Object.keys(frontmatter).length === 0) {
+    return body || "";
+  }
+  const yamlText = jsyaml.dump(frontmatter, {
+    lineWidth: -1,
+    noRefs: true,
+    sortKeys: false,
+    quotingType: '"',
+    forceQuotes: false,
+  });
+  const trimmedBody = (body || "").replace(/^\r?\n+/, "");
+  return `---\n${yamlText}---\n\n${trimmedBody}`;
+}
+
+function splitSections(body) {
+  const lines = (body || "").split("\n");
+  const sections = [];
+  let cur = { level: "preamble", title: "", lineStart: 0, lineEnd: lines.length, content: "" };
+  let inFence = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) inFence = !inFence;
+    if (inFence) continue;
+    const m = lines[i].match(/^(#{2,3})\s+(.+?)\s*$/);
+    if (m) {
+      cur.lineEnd = i;
+      cur.content = lines.slice(cur.lineStart, cur.lineEnd).join("\n");
+      if (cur.level !== "preamble" || cur.content.trim()) sections.push(cur);
+      cur = { level: m[1].length, title: m[2], lineStart: i, lineEnd: lines.length, content: "" };
+    }
+  }
+  cur.content = lines.slice(cur.lineStart, cur.lineEnd).join("\n");
+  if (cur.content.trim() || cur.level !== "preamble") sections.push(cur);
+  return sections.filter(s => s.level !== "preamble" || s.content.trim());
+}
+
+const AGENT_REQUIRED = ["name", "description", "type", "model"];
+const SKILL_REQUIRED = ["name", "description"];
+const VALID_TYPES = ["general-purpose", "Explore", "Plan", "claude-code-guide", "statusline-setup"];
+const VALID_MODELS = ["opus", "sonnet", "haiku"];
+
+function validateFrontmatter(fm, fileType) {
+  const out = { ok: true, errors: [], warnings: [] };
+  // CLAUDE.md는 frontmatter 필수 아님
+  if (fileType === "claude-md") return out;
+  if (!fm) { out.ok = false; out.errors.push("Frontmatter 누락"); return out; }
+  const required = fileType === "agent" ? AGENT_REQUIRED : SKILL_REQUIRED;
+  for (const k of required) {
+    if (!fm[k] && fm[k] !== 0) { out.errors.push(`필수 필드 누락: ${k}`); out.ok = false; }
+  }
+  if (fileType === "agent") {
+    if (fm.type && !VALID_TYPES.includes(fm.type)) {
+      out.warnings.push(`type "${fm.type}"은 표준 빌트인이 아님 (custom OK)`);
+    }
+    if (fm.model && !VALID_MODELS.includes(fm.model)) {
+      out.errors.push(`model "${fm.model}"은 유효하지 않음 (opus/sonnet/haiku)`);
+      out.ok = false;
+    }
+  }
+  if (fm.description) {
+    const len = String(fm.description).length;
+    if (len < 50) out.warnings.push(`description이 짧음 (${len}자) — 트리거 키워드 추가 권장`);
+    if (len > 800) out.warnings.push(`description이 김 (${len}자)`);
+  }
+  return out;
+}
+
+function analyzeDescription(desc) {
+  if (!desc) return { length: 0, triggerKeywords: [], hasFollowupKeywords: false, score: 0, hasPushy: false };
+  const text = String(desc);
+  const quoted = [...text.matchAll(/["“'‘](.+?)["”'’]/g)].map(m => m[1]).filter(s => s.length > 1);
+  const followupTerms = ["재실행", "다시 실행", "다시", "업데이트", "수정", "보완", "이전 결과", "재빌드"];
+  const hasFollowup = followupTerms.some(k => text.includes(k));
+  const hasPushy = /반드시 사용|use this|use it|use this skill/i.test(text);
+  let score = 0;
+  if (text.length >= 80) score += 25;
+  if (text.length <= 600) score += 15;
+  if (quoted.length >= 3) score += 25;
+  if (hasFollowup) score += 20;
+  if (hasPushy) score += 15;
+  return { length: text.length, triggerKeywords: quoted, hasFollowupKeywords: hasFollowup, score, hasPushy };
+}
+
+function classifyFile(path) {
+  if (path.includes("/.claude/agents/") || path.match(/^\.claude\/agents\//) || path.startsWith("agents/")) {
+    return { fileType: "agent", group: "agents" };
+  }
+  if (path.match(/orchestrat/i)) {
+    return { fileType: "orchestrator", group: "skills" };
+  }
+  if (path.includes("/skills/") || path.match(/SKILL\.md$/i)) {
+    return { fileType: "skill", group: "skills" };
+  }
+  return { fileType: "skill", group: "other" };
+}
+
+// ============================================================
+// === [core] FS Access API + fallback ===
+// ============================================================
+async function pickDirectory() {
+  if (!HAS_FS) {
+    toast("Chrome/Edge에서만 디렉토리 직접 편집이 가능합니다. 단일 파일 업로드를 사용하세요.", "warn", 5000);
+    return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+    state.rootHandle = handle;
+    state.rootName = handle.name;
+    state.files = [];
+    await scanDirectory(handle, "");
+    state.currentPath = state.files[0]?.path || null;
+    render();
+    toast(`로드 완료: ${state.files.length}개 .md 파일`, "ok");
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      toast(`폴더 열기 실패: ${e.message}`, "err");
+    }
+  }
+}
+
+async function scanDirectory(dirHandle, prefix, depth = 0) {
+  if (depth > 8) return; // 무한 재귀 방지
+  for await (const [name, entry] of dirHandle.entries()) {
+    const path = prefix ? `${prefix}/${name}` : name;
+    if (entry.kind === "file" && name.endsWith(".md") && name !== "CLAUDE.md") {
+      const file = await entry.getFile();
+      const raw = await file.text();
+      const parsed = parseMarkdown(raw);
+      const cls = classifyFile(path);
+      const validation = validateFrontmatter(parsed.frontmatter, cls.fileType);
+      state.files.push({
+        path, name, ...cls, raw, parsed, dirty: false,
+        handle: entry, validation,
+      });
+    } else if (entry.kind === "file" && name === "CLAUDE.md" && depth === 0) {
+      // 루트의 CLAUDE.md도 표시
+      const file = await entry.getFile();
+      const raw = await file.text();
+      const parsed = parseMarkdown(raw);
+      state.files.push({
+        path, name, fileType: "claude-md", group: "claude-md",
+        raw, parsed, dirty: false, handle: entry,
+        validation: { ok: true, errors: [], warnings: [] },
+      });
+    } else if (entry.kind === "directory" && !name.startsWith(".") || (entry.kind === "directory" && name === ".claude")) {
+      await scanDirectory(entry, path, depth + 1);
+    }
+  }
+  state.files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+async function ensurePermission(handle) {
+  if (!handle.queryPermission) return true;
+  const opts = { mode: "readwrite" };
+  if ((await handle.queryPermission(opts)) === "granted") return true;
+  return (await handle.requestPermission(opts)) === "granted";
+}
+
+async function saveFile(file) {
+  if (state.fallback) {
+    // 다운로드
+    downloadBlob(file.name, file.raw);
+    file.dirty = false;
+    toast(`다운로드: ${file.name}`, "ok");
+    return;
+  }
+  if (!file.handle) {
+    toast("파일 핸들 없음 (재로드 필요)", "err"); return;
+  }
+  if (!(await ensurePermission(file.handle))) {
+    toast("쓰기 권한 거부됨", "err"); return;
+  }
+  const writable = await file.handle.createWritable();
+  await writable.write(file.raw);
+  await writable.close();
+  file.dirty = false;
+  toast(`저장됨: ${file.path}`, "ok", 1500);
+}
+
+async function saveAllDirty() {
+  const dirties = state.files.filter(f => f.dirty);
+  if (!dirties.length) { toast("변경 없음", "info", 1500); return; }
+  let okN = 0, failN = 0;
+  for (const f of dirties) {
+    try { await saveFile(f); okN++; }
+    catch (e) { failN++; toast(`${f.name}: ${e.message}`, "err"); }
+  }
+  toast(`${okN}개 저장됨${failN ? `, ${failN}개 실패` : ""}`, failN ? "warn" : "ok");
+}
+
+function uploadFile() {
+  return new Promise(resolve => {
+    const input = el("input", { type: "file", accept: ".md,text/markdown,text/plain" });
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f) return resolve(null);
+      const text = await f.text();
+      resolve({ name: f.name, text });
+    };
+    input.click();
+  });
+}
+
+function downloadBlob(name, text) {
+  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: name });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function handleUpload() {
+  const f = await uploadFile();
+  if (!f) return;
+  const path = f.name;
+  const parsed = parseMarkdown(f.text);
+  const cls = classifyFile(path);
+  const validation = validateFrontmatter(parsed.frontmatter, cls.fileType);
+  // 중복 제거
+  state.files = state.files.filter(x => x.path !== path);
+  state.files.push({
+    path, name: path, ...cls, raw: f.text, parsed, dirty: false,
+    handle: null, validation, uploaded: true,
+  });
+  state.files.sort((a, b) => a.path.localeCompare(b.path));
+  state.currentPath = path;
+  state.fallback = true;
+  render();
+  toast(`업로드: ${path}`, "ok");
+}
+
+// ============================================================
+// === [ui-engineer] components & rendering ===
+// ============================================================
+function render() {
+  renderHeader();
+  renderTree();
+  renderEditorArea();
+  renderStatusBar();
+}
+
+function renderHeader() {
+  $("#root-path").textContent = state.rootName || "";
+  $("#root-path").style.display = state.rootName ? "" : "none";
+  const badge = $("#mode-badge");
+  if (state.fallback) {
+    badge.textContent = "단일 파일 모드"; badge.className = "mode-badge fallback";
+  } else if (state.rootHandle) {
+    badge.textContent = "디렉토리 모드"; badge.className = "mode-badge";
+  } else {
+    badge.textContent = HAS_FS ? "준비됨" : "폴백 전용";
+    badge.className = HAS_FS ? "mode-badge" : "mode-badge fallback";
+  }
+}
+
+function renderTree() {
+  const treeEl = $("#tree"); const empty = $("#tree-empty");
+  if (!state.files.length) {
+    treeEl.style.display = "none"; empty.style.display = "block"; return;
+  }
+  treeEl.style.display = "block"; empty.style.display = "none";
+  treeEl.innerHTML = "";
+
+  const groups = {};
+  for (const f of state.files) {
+    (groups[f.group] || (groups[f.group] = [])).push(f);
+  }
+  const order = ["claude-md", "agents", "skills", "other"];
+  const labels = { "claude-md": "CLAUDE.md", "agents": ".claude/agents", "skills": ".claude/skills", "other": "기타" };
+
+  for (const g of order) {
+    if (!groups[g]) continue;
+    const sec = el("div", { class: "tree-section" },
+      el("div", { class: "tree-section-header" }, labels[g])
+    );
+    for (const f of groups[g]) {
+      const dotClass = f.fileType === "agent" ? "agent" :
+                        f.fileType === "orchestrator" ? "orchestrator" :
+                        f.fileType === "skill" ? "skill" : "skill";
+      const issues = (f.validation?.errors?.length || 0) + (f.parsed?.errors?.length || 0);
+      const row = el("div",
+        { class: "tree-row" + (state.currentPath === f.path ? " active" : ""),
+          title: f.path },
+        el("span", { class: "dot " + dotClass }),
+        el("span", { class: "name" },
+          f.parsed?.frontmatter?.name || f.name.replace(/\.md$/, "")
+        ),
+        f.dirty ? el("span", { class: "dirty", title: "변경됨" }) : null,
+        issues > 0 ? el("span", { class: "errmark", title: `${issues}개 오류` }, "!") : null,
+      );
+      row.addEventListener("click", () => openFile(f.path));
+      sec.appendChild(row);
+    }
+    treeEl.appendChild(sec);
+  }
+}
+
+function renderEditorArea() {
+  const f = state.files.find(x => x.path === state.currentPath);
+  if (!f) {
+    $("#welcome").style.display = "flex";
+    $("#fm-panel").style.display = "none";
+    $("#section-rail").parentElement.parentElement.style.display = "none";
+    return;
+  }
+  $("#welcome").style.display = "none";
+  $("#fm-panel").style.display = "block";
+  $("#section-rail").parentElement.parentElement.style.display = "grid";
+
+  renderFrontmatterForm(f);
+  renderSectionRail(f);
+  renderBodyEditor(f);
+  renderPreview(f);
+}
+
+function renderFrontmatterForm(f) {
+  const form = $("#fm-form");
+  form.innerHTML = "";
+  const fm = f.parsed.frontmatter || {};
+  if (!f.parsed.frontmatter) {
+    form.appendChild(el("div", {
+      style: { gridColumn: "1 / span 2", color: "var(--fg-muted)", padding: "10px 0" }
+    }, "Frontmatter 없음. 추가하려면 본문 맨 위에 ---로 감싸 작성하세요."));
+    return;
+  }
+  const isAgent = f.fileType === "agent";
+  // 표준 필드 + 추가 필드 합쳐서 렌더
+  const standardKeys = isAgent
+    ? ["name", "description", "type", "model"]
+    : ["name", "description"];
+  const allKeys = [...standardKeys, ...Object.keys(fm).filter(k => !standardKeys.includes(k))];
+
+  const fieldTips = {
+    name: "에이전트/스킬 식별자 (영문 kebab-case 권장). 다른 곳에서 이 이름으로 참조됨.",
+    description: "스킬/에이전트의 유일한 트리거 신호. 적극적('pushy')으로 — 무엇을 하는 도구인지 + 따옴표로 트리거 예시 + 후속 작업 키워드 포함.",
+    type: "에이전트 빌트인 타입. general-purpose가 가장 일반적. Explore는 읽기 전용, Plan은 설계용.",
+    model: "에이전트가 사용할 Claude 모델. 하네스 권장은 opus (추론 품질 최고).",
+  };
+  for (const key of allKeys) {
+    const labelEl = el("label", { title: fieldTips[key] || "" }, key);
+    let inputEl;
+    if (key === "description") {
+      inputEl = el("textarea", { rows: 4, "data-fm-key": key }, fm[key] || "");
+      inputEl.value = fm[key] || "";
+      const hintEl = el("div", { class: "hint", id: "desc-hint" });
+      const wrap = el("div", { class: "row-with-hint" }, inputEl, hintEl);
+      form.appendChild(labelEl);
+      form.appendChild(wrap);
+      inputEl.addEventListener("input", () => {
+        fm[key] = inputEl.value; markDirty(f);
+        updateDescHint(inputEl.value, hintEl);
+        rerenderValidation(f);
+        triggerSerialize(f);
+      });
+      updateDescHint(fm[key] || "", hintEl);
+      continue;
+    } else if (key === "type" && isAgent) {
+      inputEl = el("select", { "data-fm-key": key },
+        ...VALID_TYPES.map(t => el("option", { value: t, ...(fm[key] === t ? {selected: true} : {}) }, t)),
+        ...(VALID_TYPES.includes(fm[key]) ? [] : [el("option", { value: fm[key], selected: true }, fm[key] || "(빈값)")])
+      );
+    } else if (key === "model" && isAgent) {
+      inputEl = el("select", { "data-fm-key": key },
+        ...VALID_MODELS.map(m => el("option", { value: m, ...(fm[key] === m ? {selected: true} : {}) }, m))
+      );
+    } else if (typeof fm[key] === "string" && fm[key].length > 60) {
+      inputEl = el("textarea", { rows: 2, "data-fm-key": key }, fm[key]);
+      inputEl.value = fm[key];
+    } else {
+      inputEl = el("input", { type: "text", "data-fm-key": key, value: fm[key] ?? "" });
+    }
+    inputEl.addEventListener("input", () => {
+      fm[key] = inputEl.tagName === "SELECT" ? inputEl.value : inputEl.value;
+      markDirty(f);
+      rerenderValidation(f);
+      triggerSerialize(f);
+    });
+    form.appendChild(labelEl);
+    form.appendChild(inputEl);
+  }
+  rerenderValidation(f);
+}
+
+function rerenderValidation(f) {
+  // 폼 하단에 검증 메시지 표시
+  $$(".validation-msg").forEach(n => n.remove());
+  const v = validateFrontmatter(f.parsed.frontmatter, f.fileType);
+  f.validation = v;
+  const form = $("#fm-form");
+  const msgWrap = el("div", { style: { gridColumn: "1 / span 2" } });
+  for (const e of v.errors) msgWrap.appendChild(el("div", { class: "validation-msg err" }, "✗ " + e));
+  for (const w of v.warnings) msgWrap.appendChild(el("div", { class: "validation-msg warn" }, "⚠ " + w));
+  if (v.ok && !v.warnings.length) {
+    msgWrap.appendChild(el("div", { class: "validation-msg ok" }, "✓ 검증 통과"));
+  }
+  form.appendChild(msgWrap);
+}
+
+function updateDescHint(desc, hintEl) {
+  const a = analyzeDescription(desc);
+  const lenColor = a.length < 50 ? "warn" : a.length > 800 ? "warn" : "ok";
+  const lenTip = "권장: 50~600자. Claude가 트리거 판단할 때 description만 본다.";
+  const scoreTip = "적극성 점수 (0~100). 길이 80자+ (+25), 600자 이하 (+15), 따옴표 트리거 구절 3개+ (+25), 후속 키워드 (+20), '반드시 사용' (+15)";
+  const trigTip = "description 안에 \"...\" 따옴표로 감싼 사용자 표현. 예: \"주식 대시보드 만들어\". 3개 이상이 권장.";
+  const fuTip = "후속 작업 키워드: 재실행, 다시, 업데이트, 수정, 보완, 이전 결과, 재빌드. 후속 요청에도 트리거되도록.";
+  const pushyTip = "Claude는 트리거를 보수적으로 판단하므로, '반드시 사용' 같은 적극적 표현이 도움된다.";
+  hintEl.innerHTML = `
+    <div title="${escapeAttr(lenTip)}"><span class="${lenColor}">${a.length}자</span>
+      · <span title="${escapeAttr(scoreTip)}">점수 <strong>${a.score}/100</strong> ⓘ</span></div>
+    <div style="margin-top:4px;" title="${escapeAttr(trigTip)}">트리거 구절 ${a.triggerKeywords.length}개${a.triggerKeywords.length ? ":" : ""} ⓘ</div>
+    ${a.triggerKeywords.length ? `<ul>${a.triggerKeywords.slice(0,5).map(k => `<li>${escapeHtml(k)}</li>`).join("")}</ul>` : ""}
+    <div style="margin-top:4px;" title="${escapeAttr(fuTip)}">후속 키워드: <span class="${a.hasFollowupKeywords ? 'ok' : 'warn'}">${a.hasFollowupKeywords ? "✓ 포함" : "⚠ 없음"}</span> ⓘ</div>
+    <div title="${escapeAttr(pushyTip)}">적극성("반드시 사용"): <span class="${a.hasPushy ? 'ok' : 'warn'}">${a.hasPushy ? "✓" : "⚠"}</span> ⓘ</div>
+  `;
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+}
+
+function renderSectionRail(f) {
+  const rail = $("#section-rail"); rail.innerHTML = "";
+  const secs = (f.parsed.sections || []).filter(s => s.level === 2 || s.level === 3);
+  if (!secs.length) {
+    rail.appendChild(el("span", { class: "empty" }, "(섹션 없음)"));
+    return;
+  }
+  secs.forEach((s, idx) => {
+    const pill = el("button", {
+      class: `pill h${s.level}`, title: `${s.title} (line ${s.lineStart + 1})`
+    }, s.title);
+    pill.addEventListener("click", () => scrollToSection(idx, s.lineStart));
+    rail.appendChild(pill);
+  });
+}
+
+function scrollToSection(sectionIdx, lineStart) {
+  // 좌측 textarea
+  scrollToLine(lineStart);
+  // 우측 프리뷰의 동일 인덱스 H2/H3로 동기 스크롤
+  const previewEl = $("#preview");
+  const target = previewEl.querySelector(`h2[data-section-idx="${sectionIdx}"], h3[data-section-idx="${sectionIdx}"]`);
+  if (target) {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    target.classList.add("section-target");
+    setTimeout(() => target.classList.remove("section-target"), 1200);
+  }
+}
+
+function renderBodyEditor(f) {
+  const ta = $("#body-editor");
+  ta.value = f.parsed.body || "";
+  ta.oninput = debounce(() => {
+    f.parsed.body = ta.value;
+    f.parsed.sections = splitSections(ta.value);
+    markDirty(f);
+    triggerSerialize(f);
+    renderSectionRail(f);
+    renderPreview(f);
+  }, 80);
+}
+
+function renderPreview(f) {
+  const html = marked.parse(f.parsed.body || "", { breaks: false, gfm: true });
+  const previewEl = $("#preview");
+  // 사용자가 직접 편집 중이면 덮어쓰지 않음 (커서 보존)
+  if (previewEl.dataset.editing === "true" && document.activeElement === previewEl) return;
+  previewEl.innerHTML = html;
+  const headings = previewEl.querySelectorAll("h2, h3");
+  const sectionsOnly = (f.parsed.sections || []).filter(s => s.level === 2 || s.level === 3);
+  headings.forEach((h, i) => {
+    if (sectionsOnly[i]) {
+      h.dataset.sectionIdx = String(i);
+      h.dataset.sectionLine = String(sectionsOnly[i].lineStart);
+    }
+  });
+}
+
+// WYSIWYG: 우측 프리뷰의 HTML을 Markdown으로 역변환해 textarea·state에 동기
+function syncFromPreview() {
+  const f = state.files.find(x => x.path === state.currentPath);
+  if (!f) return;
+  const previewEl = $("#preview");
+  let md;
+  try {
+    md = turndown.turndown(previewEl.innerHTML);
+  } catch (e) {
+    toast("HTML→Markdown 변환 실패: " + e.message, "err"); return;
+  }
+  // 변환 결과 정규화 (Turndown은 끝에 빈 줄 여러 개 남길 수 있음)
+  md = md.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "") + "\n";
+  if (md === f.parsed.body) return; // 변경 없음
+  f.parsed.body = md;
+  f.parsed.sections = splitSections(md);
+  $("#body-editor").value = md;
+  markDirty(f);
+  triggerSerialize(f);
+  renderSectionRail(f);
+  // 프리뷰 자체는 그대로 두되, 헤딩 인덱스만 다시 부여
+  const headings = previewEl.querySelectorAll("h2, h3");
+  const sectionsOnly = f.parsed.sections.filter(s => s.level === 2 || s.level === 3);
+  headings.forEach((h, i) => {
+    if (sectionsOnly[i]) h.dataset.sectionIdx = String(i);
+  });
+}
+
+let wysiwygWarned = false;
+function setWysiwyg(on) {
+  const previewEl = $("#preview");
+  const badge = $("#preview-badge");
+  if (on) {
+    previewEl.contentEditable = "true";
+    previewEl.dataset.editing = "true";
+    badge.textContent = "직접 편집"; badge.className = "badge editing";
+    if (!wysiwygWarned) {
+      toast("우측에서 편집하면 입력 즉시 좌측 Markdown으로 자동 변환됩니다 (디스크 저장은 ⌘S). 변환 시 빈 줄 등 표기 디테일은 정규화됩니다.", "info", 7000);
+      wysiwygWarned = true;
+    }
+  } else {
+    if (previewEl.dataset.editing === "true") syncFromPreview();
+    previewEl.contentEditable = "false";
+    previewEl.dataset.editing = "false";
+    badge.textContent = "읽기"; badge.className = "badge";
+    const f = state.files.find(x => x.path === state.currentPath);
+    if (f) renderPreview(f);
+  }
+}
+
+function scrollToLine(lineStart) {
+  const ta = $("#body-editor");
+  const lines = ta.value.split("\n");
+  let pos = 0;
+  for (let i = 0; i < Math.min(lineStart, lines.length); i++) pos += lines[i].length + 1;
+  ta.focus();
+  ta.setSelectionRange(pos, pos);
+  // 대략적 스크롤
+  const ratio = lineStart / lines.length;
+  ta.scrollTop = ta.scrollHeight * ratio;
+}
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]); }
+
+function markDirty(f) {
+  if (!f.dirty) {
+    f.dirty = true;
+    renderTree();
+    renderStatusBar();
+  }
+}
+
+const triggerSerialize = debounce((f) => {
+  // raw 동기화 (직렬화)
+  try {
+    f.raw = serializeMarkdown({ frontmatter: f.parsed.frontmatter, body: f.parsed.body });
+  } catch (e) {
+    toast("직렬화 실패: " + e.message, "err");
+  }
+  renderStatusBar();
+}, 100);
+
+function openFile(path) {
+  // 편집 모드였으면 미리 동기 후 끄기
+  const previewEl = $("#preview");
+  if (previewEl && previewEl.dataset.editing === "true") {
+    syncFromPreview();
+    setWysiwyg(false);
+    const t = $("#toggle-wysiwyg"); if (t) t.checked = false;
+  }
+  state.currentPath = path;
+  render();
+}
+
+function renderStatusBar() {
+  const dirty = state.files.filter(f => f.dirty).length;
+  let warnN = 0, errN = 0;
+  for (const f of state.files) {
+    warnN += (f.validation?.warnings?.length || 0);
+    errN += (f.validation?.errors?.length || 0) + (f.parsed?.errors?.length || 0);
+  }
+  $("#stat-files").innerHTML = `파일: <strong>${state.files.length}</strong>`;
+  $("#stat-dirty").innerHTML = dirty
+    ? `<span class="dot warn"></span>변경: <strong>${dirty}</strong>`
+    : `<span class="dot ok"></span>변경 없음`;
+  $("#stat-issues").innerHTML = errN
+    ? `<span class="dot err"></span>검증: ${warnN} 경고 / ${errN} 오류`
+    : warnN
+    ? `<span class="dot warn"></span>검증: ${warnN} 경고`
+    : `<span class="dot ok"></span>검증 통과`;
+  $("#stat-current").textContent = state.currentPath || "";
+}
+
+// ============================================================
+// === [ui-engineer] modals: search, replace ===
+// ============================================================
+function openSearchModal() {
+  if (!state.files.length) { toast("로드된 파일이 없습니다", "warn"); return; }
+  const backdrop = el("div", { class: "modal-backdrop" });
+  const input = el("input", { type: "search", placeholder: "검색어 (정규식 토글 가능)", autofocus: true });
+  const regexCb = el("input", { type: "checkbox" });
+  const caseCb = el("input", { type: "checkbox" });
+  const results = el("div");
+  const modal = el("div", { class: "modal" },
+    el("div", { class: "modal-head" },
+      el("h3", {}, "검색"),
+      input,
+    ),
+    el("div", { class: "modal-body" },
+      el("div", { style: { display: "flex", gap: "14px", marginBottom: "8px", fontSize: "11.5px", color: "var(--fg-muted)" } },
+        el("label", {}, regexCb, " 정규식"),
+        el("label", {}, caseCb, " 대소문자 구분"),
+        el("span", { style: { marginLeft: "auto" } }, el("kbd", {}, "Esc"), " 닫기")
+      ),
+      results,
+    ),
+  );
+  backdrop.appendChild(modal);
+  backdrop.addEventListener("click", e => { if (e.target === backdrop) backdrop.remove(); });
+  document.body.appendChild(backdrop);
+  setTimeout(() => input.focus(), 0);
+
+  const doSearch = debounce(() => {
+    const q = input.value.trim();
+    results.innerHTML = "";
+    if (!q) return;
+    let re;
+    try {
+      re = regexCb.checked ? new RegExp(q, caseCb.checked ? "g" : "gi")
+                            : new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), caseCb.checked ? "g" : "gi");
+    } catch (e) {
+      results.appendChild(el("div", { style: { color: "var(--err)" } }, "정규식 오류: " + e.message)); return;
+    }
+    let hits = 0;
+    for (const f of state.files) {
+      const lines = f.raw.split("\n");
+      lines.forEach((line, i) => {
+        if (re.test(line)) {
+          re.lastIndex = 0;
+          const html = escapeHtml(line).replace(re, m => `<mark>${escapeHtml(m)}</mark>`);
+          re.lastIndex = 0;
+          const r = el("div", { class: "search-result" });
+          r.innerHTML = `<div class="path">${f.path}:${i+1}</div><div class="snippet">${html}</div>`;
+          r.addEventListener("click", () => {
+            backdrop.remove();
+            openFile(f.path);
+            setTimeout(() => scrollToLine(i), 30);
+          });
+          results.appendChild(r); hits++;
+        }
+      });
+      if (hits > 200) break;
+    }
+    if (!hits) results.appendChild(el("div", { style: { color: "var(--fg-muted)" } }, "결과 없음"));
+  }, 100);
+  input.addEventListener("input", doSearch);
+  regexCb.addEventListener("change", doSearch);
+  caseCb.addEventListener("change", doSearch);
+}
+
+function openReplaceModal() {
+  if (!state.files.length) { toast("로드된 파일이 없습니다", "warn"); return; }
+  const findIn = el("input", { type: "text", placeholder: "찾을 문자열" });
+  const replaceIn = el("input", { type: "text", placeholder: "바꿀 문자열" });
+  const regexCb = el("input", { type: "checkbox" });
+  const caseCb = el("input", { type: "checkbox" });
+  const filterSel = el("select", {},
+    el("option", { value: "all" }, "전체"),
+    el("option", { value: "agent" }, "에이전트만"),
+    el("option", { value: "skill" }, "스킬만"),
+    el("option", { value: "orchestrator" }, "오케스트레이터만"),
+  );
+  const preview = el("div", { class: "replace-preview" }, "(검색어 입력 후 미리보기)");
+  const applyBtn = el("button", { class: "primary", disabled: true }, "적용 (변경됨 표시만)");
+  const cancelBtn = el("button", {}, "취소");
+  const backdrop = el("div", { class: "modal-backdrop" });
+  const modal = el("div", { class: "modal" },
+    el("div", { class: "modal-head" }, el("h3", {}, "일괄 치환")),
+    el("div", { class: "modal-body" },
+      el("div", { class: "fm-grid", style: { gridTemplateColumns: "100px 1fr" } },
+        el("label", {}, "찾기"), findIn,
+        el("label", {}, "치환"), replaceIn,
+        el("label", {}, "옵션"),
+        el("div", {},
+          el("label", { style: { marginRight: "12px" } }, regexCb, " 정규식"),
+          el("label", {}, caseCb, " 대소문자")
+        ),
+        el("label", {}, "대상"), filterSel,
+      ),
+      el("div", { style: { marginTop: "12px", fontSize: "12px", color: "var(--fg-muted)" } }, "미리보기:"),
+      preview,
+    ),
+    el("div", { class: "modal-foot" }, cancelBtn, applyBtn),
+  );
+  backdrop.appendChild(modal); document.body.appendChild(backdrop);
+  cancelBtn.onclick = () => backdrop.remove();
+
+  let plan = []; // {file, newRaw, hits}
+  const refresh = debounce(() => {
+    plan = []; preview.innerHTML = "";
+    if (!findIn.value) { applyBtn.disabled = true; preview.textContent = "(검색어 비어있음)"; return; }
+    let re;
+    try {
+      const flags = (caseCb.checked ? "" : "i") + "g";
+      re = regexCb.checked ? new RegExp(findIn.value, flags)
+                            : new RegExp(findIn.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), flags);
+    } catch (e) { preview.textContent = "정규식 오류: " + e.message; applyBtn.disabled = true; return; }
+    const filt = filterSel.value;
+    let totalHits = 0, totalFiles = 0;
+    for (const f of state.files) {
+      if (filt !== "all" && f.fileType !== filt) continue;
+      let hits = 0;
+      const newRaw = f.raw.replace(re, () => { hits++; return replaceIn.value; });
+      if (hits > 0) {
+        plan.push({ file: f, newRaw, hits });
+        totalFiles++; totalHits += hits;
+        preview.appendChild(el("div", { class: "file-head" }, `${f.path}  (${hits}건)`));
+        const lines = f.raw.split("\n");
+        const newLines = newRaw.split("\n");
+        const max = Math.min(lines.length, 6);
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i] !== newLines[i]) {
+            preview.appendChild(el("div", {}, `  ${i+1}: `,
+              el("span", { class: "replace-old" }, lines[i]),
+              " → ",
+              el("span", { class: "replace-new" }, newLines[i])
+            ));
+          }
+        }
+      }
+    }
+    if (!totalHits) {
+      preview.textContent = "일치 항목 없음";
+      applyBtn.disabled = true; applyBtn.textContent = "적용";
+    } else {
+      applyBtn.disabled = false;
+      applyBtn.textContent = `${totalFiles}개 파일 / ${totalHits}건 적용`;
+    }
+  }, 120);
+  findIn.addEventListener("input", refresh);
+  replaceIn.addEventListener("input", refresh);
+  regexCb.addEventListener("change", refresh);
+  caseCb.addEventListener("change", refresh);
+  filterSel.addEventListener("change", refresh);
+
+  applyBtn.onclick = () => {
+    let appliedFiles = 0;
+    for (const { file, newRaw } of plan) {
+      // 라운드트립 점검
+      const np = parseMarkdown(newRaw);
+      file.raw = newRaw;
+      file.parsed = np;
+      file.validation = validateFrontmatter(np.frontmatter, file.fileType);
+      file.dirty = true;
+      appliedFiles++;
+    }
+    backdrop.remove();
+    render();
+    toast(`${appliedFiles}개 파일 변경. 저장하려면 ⌘⇧S`, "ok");
+  };
+
+  setTimeout(() => findIn.focus(), 0);
+}
+
+// ============================================================
+// === [core] keyboard shortcuts ===
+// ============================================================
+function isMod(e) { return e.metaKey || e.ctrlKey; }
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    $$(".modal-backdrop").forEach(m => m.remove());
+    return;
+  }
+  if (!isMod(e)) return;
+  const k = e.key.toLowerCase();
+  if (k === "s" && !e.shiftKey) {
+    e.preventDefault();
+    const f = state.files.find(x => x.path === state.currentPath);
+    if (f && f.dirty) saveFile(f);
+    else toast("변경 없음", "info", 1200);
+  } else if (k === "s" && e.shiftKey) {
+    e.preventDefault(); saveAllDirty();
+  } else if (k === "p") {
+    e.preventDefault(); openSearchModal();
+  } else if (k === "h" && e.shiftKey) {
+    e.preventDefault(); openReplaceModal();
+  } else if (k === "b") {
+    e.preventDefault();
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    document.body.dataset.sidebarCollapsed = state.sidebarCollapsed;
+  } else if (k === "\\") {
+    e.preventDefault();
+    state.previewCollapsed = !state.previewCollapsed;
+    document.body.dataset.previewCollapsed = state.previewCollapsed;
+  }
+});
+
+// ============================================================
+// === [core] bootstrap ===
+// ============================================================
+function bootstrap() {
+  $("#btn-pick").addEventListener("click", pickDirectory);
+  $("#btn-upload").addEventListener("click", handleUpload);
+  $("#btn-search").addEventListener("click", openSearchModal);
+  $("#btn-replace").addEventListener("click", openReplaceModal);
+  $("#btn-save").addEventListener("click", () => {
+    const f = state.files.find(x => x.path === state.currentPath);
+    if (f && f.dirty) saveFile(f);
+    else toast("변경 없음", "info", 1200);
+  });
+  $("#btn-save-all").addEventListener("click", saveAllDirty);
+  $("#btn-theme").addEventListener("click", () => {
+    state.theme = state.theme === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", state.theme);
+    localStorage.setItem("he-theme", state.theme);
+  });
+
+  if (!HAS_FS) {
+    toast("이 브라우저는 폴더 직접 편집을 지원하지 않습니다 (Chrome/Edge 권장). 파일 업로드 모드로 동작합니다.", "warn", 6000);
+    $("#btn-pick").disabled = true; $("#btn-pick").style.opacity = "0.5";
+  }
+
+  // WYSIWYG 토글
+  $("#toggle-wysiwyg").addEventListener("change", e => setWysiwyg(e.target.checked));
+  // 우측 편집 → 좌측 Markdown 실시간 동기 (단방향: 좌측 textarea만 갱신, 우측 프리뷰 innerHTML은 건드리지 않아 커서 보존)
+  const previewEl = $("#preview");
+  const debouncedSync = debounce(() => {
+    if (previewEl.dataset.editing === "true") syncFromPreview();
+  }, 250);
+  previewEl.addEventListener("input", debouncedSync);
+  // blur 시점에도 마지막 동기 (놓침 방지)
+  previewEl.addEventListener("blur", () => {
+    if (previewEl.dataset.editing === "true") syncFromPreview();
+  }, true);
+
+  // 페이지 닫기 보호 — dirty 파일이 있으면 브라우저 confirm 다이얼로그
+  window.addEventListener("beforeunload", (e) => {
+    const dirtyN = state.files.filter(f => f.dirty).length;
+    if (dirtyN > 0) {
+      e.preventDefault();
+      e.returnValue = `저장되지 않은 변경 ${dirtyN}개가 있습니다.`;
+      return e.returnValue;
+    }
+  });
+
+  // 라운드트립 셀프 테스트 (개발자 콘솔용)
+  window.__harnessSelfTest = function() {
+    const samples = [
+      "---\nname: x\ndescription: y\n---\n\n# Hi",
+      "---\nname: agent\ndescription: \"foo, bar\"\ntype: general-purpose\nmodel: opus\n---\n\n## Section\n\nbody",
+      "no frontmatter\n## Section",
+    ];
+    for (const s of samples) {
+      const p1 = parseMarkdown(s);
+      const r2 = serializeMarkdown(p1);
+      const p2 = parseMarkdown(r2);
+      const ok = JSON.stringify(p1.frontmatter) === JSON.stringify(p2.frontmatter)
+              && p1.body.trim() === p2.body.trim();
+      console.log(ok ? "✓" : "✗", s.slice(0, 40));
+    }
+  };
+
+  render();
+  console.log("Harness Editor ready. Run __harnessSelfTest() in console for round-trip check.");
+}
+bootstrap();
+</script>
+</body>
+</html>
