@@ -158,7 +158,9 @@ section.editor {
   display: grid;
   grid-template-rows: auto 1fr;
   overflow: hidden;
+  min-width: 0; min-height: 0; /* main grid의 1fr cell이 자식 intrinsic width로 늘어나지 않게 */
 }
+.body-pane > * { min-width: 0; min-height: 0; }
 .fm-panel {
   border-bottom: 1px solid var(--border); background: var(--bg);
   padding: 12px 16px;
@@ -191,35 +193,93 @@ section.editor {
 .validation-msg.ok { color: var(--ok); }
 
 .body-pane {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  overflow: hidden; min-height: 0;
+  display: flex; flex-direction: row; flex-wrap: nowrap;
+  overflow: hidden; min-height: 0; min-width: 0;
+  width: 100%;
 }
-[data-preview-collapsed="true"] .body-pane { grid-template-columns: 1fr 0; }
 [data-preview-collapsed="true"] .preview-side { display: none; }
+[data-preview-collapsed="true"] .body-splitter { display: none; }
 
 .editor-side {
-  display: grid; grid-template-rows: auto 1fr;
-  border-right: 1px solid var(--border);
+  flex-grow: var(--editor-fr, 1);
+  flex-shrink: 1;
+  flex-basis: 0;
+  display: grid;
+  grid-template-rows: var(--rail-h, 180px) 6px 1fr;
   overflow: hidden;
+  min-width: 0; min-height: 0;
 }
+.body-vsplitter {
+  background: var(--border);
+  cursor: row-resize;
+  position: relative;
+  transition: background 120ms ease;
+  touch-action: none;
+}
+.body-vsplitter:hover,
+.body-vsplitter[data-dragging="true"] { background: var(--accent); }
+.body-vsplitter::after {
+  content: ""; position: absolute;
+  left: 0; right: 0; top: -3px; bottom: -3px;
+}
+body[data-vsplitter-dragging="true"] { cursor: row-resize; user-select: none; }
+body[data-vsplitter-dragging="true"] * { cursor: row-resize !important; }
+.body-splitter {
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: 6px;
+  background: var(--border);
+  cursor: col-resize;
+  position: relative;
+  transition: background 120ms ease;
+  touch-action: none;
+}
+.body-splitter:hover,
+.body-splitter[data-dragging="true"] { background: var(--accent); }
+.body-splitter::after {
+  content: ""; position: absolute;
+  top: 0; bottom: 0; left: -3px; right: -3px;
+}
+body[data-splitter-dragging="true"] { cursor: col-resize; user-select: none; }
+body[data-splitter-dragging="true"] * { cursor: col-resize !important; }
 .section-rail {
-  display: flex; gap: 4px; padding: 6px 12px;
-  border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 4px 0;
   background: var(--bg-elevated);
-  overflow-x: auto; flex-wrap: wrap;
-  font-size: 11.5px;
+  overflow-y: auto; overflow-x: hidden;
+  font-size: 12px;
+  min-height: 0;
 }
-.section-rail .pill {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 3px 9px; border-radius: 12px;
-  background: var(--bg); border: 1px solid var(--border);
-  cursor: pointer; white-space: nowrap;
+.section-rail .sec-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 12px;
+  background: transparent; border: 0;
+  color: var(--fg);
+  text-align: left; cursor: pointer;
+  font: inherit;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  width: 100%;
+  flex-shrink: 0; /* 트리 영역 줄어도 row는 압축되지 않고 컨테이너가 스크롤 */
 }
-.section-rail .pill:hover { background: var(--bg-hover); }
-.section-rail .pill.h2 { font-weight: 600; }
-.section-rail .pill.h3 { color: var(--fg-muted); padding-left: 16px; }
-.section-rail .empty { color: var(--fg-muted); }
+.section-rail .sec-row:hover { background: var(--bg-hover); }
+.section-rail .sec-row .marker {
+  flex-shrink: 0;
+  font-size: 9px; color: var(--fg-muted);
+  width: 14px;
+}
+.section-rail .sec-row .label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; min-width: 0;
+}
+.section-rail .sec-row.h2 .label { font-weight: 600; }
+.section-rail .sec-row.h3 {
+  padding-left: 30px;
+  color: var(--fg-muted);
+}
+.section-rail .empty {
+  padding: 6px 12px;
+  color: var(--fg-muted); font-size: 11.5px;
+}
 
 .body-textarea {
   width: 100%; height: 100%;
@@ -227,12 +287,17 @@ section.editor {
   background: var(--bg); color: var(--fg);
   font-family: var(--mono); font-size: 13px; line-height: 1.65;
   resize: none; outline: none;
-  white-space: pre; overflow: auto;
+  white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+  overflow-x: hidden; overflow-y: auto;
+  min-width: 0;
 }
 
 .preview-side {
+  flex-grow: var(--preview-fr, 1);
+  flex-shrink: 1;
+  flex-basis: 0;
   background: var(--bg-elevated); overflow: hidden;
-  display: grid; grid-template-rows: auto 1fr; min-height: 0;
+  display: grid; grid-template-rows: auto 1fr; min-height: 0; min-width: 0;
 }
 .preview-toolbar {
   display: flex; align-items: center; gap: 8px;
@@ -434,8 +499,10 @@ kbd {
     <div class="body-pane">
       <div class="editor-side">
         <div class="section-rail" id="section-rail"></div>
+        <div class="body-vsplitter" id="body-vsplitter" role="separator" aria-orientation="horizontal" title="드래그: 목차/본문 높이 조절 · 더블클릭: 기본값 복원"></div>
         <textarea id="body-editor" class="body-textarea" spellcheck="false" placeholder="Markdown 본문 (frontmatter 아래)"></textarea>
       </div>
+      <div class="body-splitter" id="body-splitter" role="separator" aria-orientation="vertical" aria-label="에디터/프리뷰 너비 조절" title="드래그: 너비 조절 · 더블클릭: 50:50 복원"></div>
       <div class="preview-side">
         <div class="preview-toolbar">
           <span>프리뷰</span>
@@ -800,6 +867,121 @@ function render() {
   renderStatusBar();
 }
 
+// 좌측 에디터 / 우측 프리뷰 사이의 드래그 가능한 splitter
+// localStorage: he-split-ratio (0~1, 좌측 비율)
+function setupBodySplitter() {
+  const pane = document.querySelector(".body-pane");
+  const splitter = $("#body-splitter");
+  if (!pane || !splitter) return;
+  const MIN_PX = 200;
+
+  function applyRatio(r) {
+    // r = 좌측 비율 (0~1). flex-grow는 단위 없는 숫자.
+    if (!(r > 0 && r < 1)) { r = 0.5; }
+    pane.style.setProperty("--editor-fr", r.toFixed(4));
+    pane.style.setProperty("--preview-fr", (1 - r).toFixed(4));
+  }
+
+  // 부팅 시 저장값 복원
+  const saved = parseFloat(localStorage.getItem("he-split-ratio"));
+  if (saved > 0 && saved < 1) applyRatio(saved);
+
+  let dragging = false;
+  splitter.addEventListener("pointerdown", (e) => {
+    if (state.previewCollapsed) return;
+    dragging = true;
+    splitter.setPointerCapture(e.pointerId);
+    splitter.dataset.dragging = "true";
+    document.body.dataset.splitterDragging = "true";
+    e.preventDefault();
+  });
+  splitter.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const rect = pane.getBoundingClientRect();
+    const splitterW = splitter.offsetWidth || 6;
+    const usable = rect.width - splitterW;
+    if (usable < MIN_PX * 2) return; // 너무 좁으면 무시
+    let leftPx = e.clientX - rect.left - splitterW / 2;
+    leftPx = Math.max(MIN_PX, Math.min(usable - MIN_PX, leftPx));
+    const ratio = leftPx / usable;
+    applyRatio(ratio);
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    try { splitter.releasePointerCapture(e.pointerId); } catch (_) {}
+    splitter.dataset.dragging = "false";
+    document.body.dataset.splitterDragging = "false";
+    // 저장
+    const editorFr = parseFloat(pane.style.getPropertyValue("--editor-fr")) || 0.5;
+    const previewFr = parseFloat(pane.style.getPropertyValue("--preview-fr")) || 0.5;
+    const sum = editorFr + previewFr;
+    const ratio = sum > 0 ? editorFr / sum : 0.5;
+    localStorage.setItem("he-split-ratio", ratio.toFixed(4));
+  }
+  splitter.addEventListener("pointerup", endDrag);
+  splitter.addEventListener("pointercancel", endDrag);
+
+  // 더블클릭 → 50:50 복원
+  splitter.addEventListener("dblclick", () => {
+    applyRatio(0.5);
+    localStorage.removeItem("he-split-ratio");
+  });
+}
+
+// 좌측 에디터 내부의 트리(목차)와 textarea 사이 상하 splitter
+// localStorage: he-rail-height (px)
+function setupRailSplitter() {
+  const editor = document.querySelector(".editor-side");
+  const splitter = $("#body-vsplitter");
+  if (!editor || !splitter) return;
+  const DEFAULT_PX = 180;
+  const MIN_RAIL = 60;
+  const MIN_BODY = 100;
+
+  function applyHeight(px) {
+    editor.style.setProperty("--rail-h", px + "px");
+  }
+
+  const saved = parseInt(localStorage.getItem("he-rail-height"), 10);
+  if (saved > 0) applyHeight(saved);
+
+  let dragging = false;
+  splitter.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    splitter.setPointerCapture(e.pointerId);
+    splitter.dataset.dragging = "true";
+    document.body.dataset.vsplitterDragging = "true";
+    e.preventDefault();
+  });
+  splitter.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const rect = editor.getBoundingClientRect();
+    const splitterH = splitter.offsetHeight || 6;
+    const usable = rect.height - splitterH;
+    if (usable < MIN_RAIL + MIN_BODY) return;
+    let railPx = e.clientY - rect.top - splitterH / 2;
+    railPx = Math.max(MIN_RAIL, Math.min(usable - MIN_BODY, railPx));
+    applyHeight(railPx);
+  });
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    try { splitter.releasePointerCapture(e.pointerId); } catch (_) {}
+    splitter.dataset.dragging = "false";
+    document.body.dataset.vsplitterDragging = "false";
+    const cur = parseInt(editor.style.getPropertyValue("--rail-h"), 10);
+    if (cur > 0) localStorage.setItem("he-rail-height", String(cur));
+  }
+  splitter.addEventListener("pointerup", endDrag);
+  splitter.addEventListener("pointercancel", endDrag);
+
+  splitter.addEventListener("dblclick", () => {
+    applyHeight(DEFAULT_PX);
+    localStorage.removeItem("he-rail-height");
+  });
+}
+
 function renderHeader() {
   $("#root-path").textContent = state.rootName || "";
   $("#root-path").style.display = state.rootName ? "" : "none";
@@ -866,7 +1048,7 @@ function renderEditorArea() {
   }
   $("#welcome").style.display = "none";
   $("#fm-panel").style.display = "block";
-  $("#section-rail").parentElement.parentElement.style.display = "grid";
+  $("#section-rail").parentElement.parentElement.style.display = "flex";
 
   renderFrontmatterForm(f);
   renderSectionRail(f);
@@ -987,11 +1169,14 @@ function renderSectionRail(f) {
     return;
   }
   secs.forEach((s, idx) => {
-    const pill = el("button", {
-      class: `pill h${s.level}`, title: `${s.title} (line ${s.lineStart + 1})`
-    }, s.title);
-    pill.addEventListener("click", () => scrollToSection(idx, s.lineStart));
-    rail.appendChild(pill);
+    const row = el("button", {
+      class: `sec-row h${s.level}`,
+      title: `${s.title} (line ${s.lineStart + 1})`
+    });
+    row.appendChild(el("span", { class: "marker" }, s.level === 2 ? "H2" : "H3"));
+    row.appendChild(el("span", { class: "label" }, s.title));
+    row.addEventListener("click", () => scrollToSection(idx, s.lineStart));
+    rail.appendChild(row);
   });
 }
 
@@ -1378,6 +1563,10 @@ function bootstrap() {
     toast("이 브라우저는 폴더 직접 편집을 지원하지 않습니다 (Chrome/Edge 권장). 파일 업로드 모드로 동작합니다.", "warn", 6000);
     $("#btn-pick").disabled = true; $("#btn-pick").style.opacity = "0.5";
   }
+
+  // 좌측/우측 너비 조절 splitter
+  setupBodySplitter();
+  setupRailSplitter();
 
   // WYSIWYG 토글
   $("#toggle-wysiwyg").addEventListener("change", e => setWysiwyg(e.target.checked));
